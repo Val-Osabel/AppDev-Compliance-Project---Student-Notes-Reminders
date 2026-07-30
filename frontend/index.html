@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Student Notes & Reminders</title>
+
+<style>
+body { font-family: Arial; margin: 20px; }
+input, select, button { margin: 5px; padding: 6px; }
+table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+th, td { border: 1px solid #ccc; padding: 8px; }
+button { cursor: pointer; }
+</style>
+
+</head>
+<body>
+
+<h2>Student Notes & Reminders</h2>
+
+<!-- INPUT FORM -->
+
+<input id="title" placeholder="Enter note">
+<select id="category">
+    <option value="School">School</option>
+    <option value="Personal">Personal</option>
+</select>
+<button onclick="addTask()">Add</button>
+
+<!-- FILTER -->
+
+<br><br> <label>Filter:</label> <select id="filter" onchange="loadTasks()"> <option value="">All</option> <option value="School">School</option> <option value="Work">Work</option> <option value="Personal">Personal</option> </select>
+
+<!-- TABLE -->
+
+<table>
+<thead>
+<tr>
+<th>Title</th>
+<th>Category</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+
+<script>
+const API_URL = 'http://localhost:3000/api/tasks';
+
+let editId = null;
+
+// LOAD TASKS
+async function loadTasks() {
+    try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+
+        const filter = document.getElementById('filter').value;
+        const table = document.getElementById('table');
+
+        table.innerHTML = '';
+
+        if (data.length === 0) {
+            table.innerHTML = '<tr><td colspan="4">No tasks found</td></tr>';
+            return;
+        }
+
+        data
+        .filter(t => !filter || t.category === filter)
+        .forEach(task => {
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td>${task.title}</td>
+                <td>${task.category}</td>
+                <td>${task.status}</td>
+                <td>
+                    <button onclick="editTask(${task.id}, '${task.title}', '${task.category}')">Edit</button>
+                    <button onclick="toggle(${task.id})">Toggle</button>
+                    <button onclick="del(${task.id})">Delete</button>
+                </td>
+            `;
+
+            table.appendChild(row);
+        });
+
+    } catch (err) {
+        document.getElementById('table').innerHTML =
+            '<tr><td colspan="4">Error loading tasks</td></tr>';
+        console.error(err);
+    }
+}
+
+// ADD or UPDATE
+async function addTask() {
+    const title = document.getElementById('title').value;
+    const category = document.getElementById('category').value;
+
+    if (!title) {
+        alert('Title is required');
+        return;
+    }
+
+    try {
+        if (editId !== null) {
+            // UPDATE
+            await fetch(`${API_URL}/${editId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title, category })
+            });
+            editId = null;
+        } else {
+            // CREATE
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title, category })
+            });
+        }
+
+        document.getElementById('title').value = '';
+        loadTasks();
+
+    } catch (err) {
+        alert('Error saving task');
+        console.error(err);
+    }
+}
+
+// EDIT
+function editTask(id, title, category) {
+    document.getElementById('title').value = title;
+    document.getElementById('category').value = category;
+    editId = id;
+}
+
+// TOGGLE STATUS
+async function toggle(id) {
+    await fetch(`${API_URL}/${id}/toggle`, { method: 'PATCH' });
+    loadTasks();
+}
+
+// DELETE
+async function del(id) {
+    if (!confirm('Delete this task?')) return;
+
+    await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+    loadTasks();
+}
+
+// INITIAL LOAD
+loadTasks();
+</script>
+
+</body>
+</html>
